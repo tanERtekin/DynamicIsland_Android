@@ -87,8 +87,12 @@ class IslandOverlayService : android.app.Service(), LifecycleOwner, ViewModelSto
     }
 
     private fun setupOverlayView() {
+        val windowFlags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
+
         layoutParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -96,14 +100,16 @@ class IslandOverlayService : android.app.Service(), LifecycleOwner, ViewModelSto
                 @Suppress("DEPRECATION")
                 WindowManager.LayoutParams.TYPE_PHONE
             },
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            windowFlags,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             x = 0
-            y = 0
+            y = 10
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
         }
 
         overlayComposeView = ComposeView(this).apply {
@@ -133,18 +139,18 @@ class IslandOverlayService : android.app.Service(), LifecycleOwner, ViewModelSto
             _islandMode.collect { mode ->
                 when (mode) {
                     is IslandMode.Collapsed, is IslandMode.HUD -> {
-                        // Narrow touch target
+                        layoutParams.width = WindowManager.LayoutParams.WRAP_CONTENT
+                        layoutParams.height = WindowManager.LayoutParams.WRAP_CONTENT
                         layoutParams.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-                        layoutParams.height = WindowManager.LayoutParams.WRAP_CONTENT
+                                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
                     }
                     is IslandMode.Expanded -> {
-                        // In expanded mode, allow touch interaction with the sheet
+                        layoutParams.width = WindowManager.LayoutParams.MATCH_PARENT
+                        layoutParams.height = WindowManager.LayoutParams.WRAP_CONTENT
                         layoutParams.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-                        layoutParams.height = WindowManager.LayoutParams.WRAP_CONTENT
+                                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
                     }
                 }
                 overlayComposeView?.let { view ->

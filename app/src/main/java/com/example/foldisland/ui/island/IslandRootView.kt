@@ -36,15 +36,7 @@ fun IslandRootView(
     }
 
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(top = 10.dp)
-            .animateContentSize(
-                animationSpec = spring(
-                    dampingRatio = 0.8f,
-                    stiffness = 450f
-                )
-            ),
+        modifier = modifier.padding(top = 4.dp),
         contentAlignment = Alignment.TopCenter
     ) {
         AnimatedContent(

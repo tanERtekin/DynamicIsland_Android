@@ -39,10 +39,10 @@ object MediaManager {
                         Random.nextFloat().coerceIn(0.1f, 0.9f),
                         Random.nextFloat().coerceIn(0.4f, 1.0f)
                     )
+                    delay(120)
                 } else {
-                    _equalizerBars.value = listOf(0.15f, 0.15f, 0.15f, 0.15f)
+                    delay(600)
                 }
-                delay(120)
             }
         }
     }
