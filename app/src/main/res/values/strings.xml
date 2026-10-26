@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Fold Island</string>
+    <string name="notification_channel_name">Dynamic Island Service</string>
+    <string name="notification_channel_desc">Active Dynamic Island overlay service for Fold 7</string>
+</resources>
