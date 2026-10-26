@@ -14,20 +14,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.FolderSpecial
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Note
 import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -38,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -56,11 +56,17 @@ fun ExpandedIslandView(
     modifier: Modifier = Modifier
 ) {
     val view = LocalView.current
+    val configuration = LocalConfiguration.current
+    val isTabletScreen = configuration.screenWidthDp > 600
+
+    // Card width dynamically adjusts for Fold 7 Cover Screen vs Inner Tablet Screen
+    val cardWidth = if (isTabletScreen) 480.dp else 350.dp
+
     var selectedTab by remember { mutableStateOf(ActiveTab.HOME) }
 
     Box(
         modifier = modifier
-            .width(360.dp)
+            .width(cardWidth)
             .clip(RoundedCornerShape(32.dp))
             .background(IslandColors.GlassSurface)
             .border(1.dp, IslandColors.GlassBorder, RoundedCornerShape(32.dp))
@@ -70,47 +76,49 @@ fun ExpandedIslandView(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxWidth()
         ) {
+            // Subtle iOS-Style Pull-to-Dismiss Handle (No 'X' button needed!)
+            Box(
+                modifier = Modifier
+                    .padding(bottom = 8.dp)
+                    .width(36.dp)
+                    .height(4.dp)
+                    .clip(CircleShape)
+                    .background(IslandColors.TextTertiary)
+                    .clickable {
+                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        onCollapseRequested()
+                    }
+            )
+
             // Header Bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                    .padding(horizontal = 18.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(10.dp)
+                            .size(9.dp)
                             .clip(CircleShape)
                             .background(IslandColors.NeonGreen)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Fold 7 Dynamic Island",
+                        text = if (isTabletScreen) "Galaxy Fold 7 • Tablet Modu" else "Dynamic Island",
                         color = IslandColors.TextPrimary,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
 
-                IconButton(
-                    onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                        onCollapseRequested()
-                    },
-                    modifier = Modifier
-                        .size(30.dp)
-                        .clip(CircleShape)
-                        .background(IslandColors.GlassBorder)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close",
-                        tint = IslandColors.TextSecondary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
+                Text(
+                    text = "Kapatmak için dışarı dokunun",
+                    color = IslandColors.TextTertiary,
+                    fontSize = 10.sp
+                )
             }
 
             // Tab Navigation Bar

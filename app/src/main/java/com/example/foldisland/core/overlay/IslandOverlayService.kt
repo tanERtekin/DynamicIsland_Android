@@ -14,6 +14,7 @@ import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.SavedStateRegistry
@@ -26,11 +27,8 @@ import com.example.foldisland.ui.island.IslandRootView
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
-/**
- * Rock-solid, flicker-free Foreground Service managing the Dynamic Island overlay.
- * Uses a single, stable WindowManager configuration with official Samsung cutout support.
- */
 class IslandOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateRegistryOwner {
 
     private val store = ViewModelStore()
@@ -39,6 +37,7 @@ class IslandOverlayService : LifecycleService(), ViewModelStoreOwner, SavedState
     private var windowManager: WindowManager? = null
     private var overlayComposeView: ComposeView? = null
     private var isViewAdded = false
+    private lateinit var layoutParams: WindowManager.LayoutParams
 
     private val _islandMode = MutableStateFlow<IslandMode>(IslandMode.Collapsed)
     val islandMode: StateFlow<IslandMode> = _islandMode.asStateFlow()
@@ -71,17 +70,13 @@ class IslandOverlayService : LifecycleService(), ViewModelStoreOwner, SavedState
 
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         setupOverlayView()
+        observeModeTransitions()
     }
 
     private fun setupOverlayView() {
         if (isViewAdded) return
 
-        // Stable, flicker-free window flags specifically tailored for Samsung One UI & Fold devices
-        val windowFlags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
-
-        val layoutParams = WindowManager.LayoutParams(
+        layoutParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -90,14 +85,15 @@ class IslandOverlayService : LifecycleService(), ViewModelStoreOwner, SavedState
                 @Suppress("DEPRECATION")
                 WindowManager.LayoutParams.TYPE_PHONE
             },
-            windowFlags,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             x = 0
-            y = 12 // Positioned cleanly below/around the top camera punch hole
+            y = 10
             
-            // Critical for Samsung cutout rendering: avoids status bar / window manager flicker loop
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode =
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
@@ -124,6 +120,42 @@ class IslandOverlayService : LifecycleService(), ViewModelStoreOwner, SavedState
             isViewAdded = true
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+
+    private fun observeModeTransitions() {
+        lifecycleScope.launch {
+            _islandMode.collect { mode ->
+                if (!isViewAdded || overlayComposeView == null) return@collect
+
+                when (mode) {
+                    is IslandMode.Collapsed, is IslandMode.HUD -> {
+                        // Compact pill window
+                        layoutParams.width = WindowManager.LayoutParams.WRAP_CONTENT
+                        layoutParams.height = WindowManager.LayoutParams.WRAP_CONTENT
+                        layoutParams.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
+                    }
+                    is IslandMode.Expanded -> {
+                        // Full screen touch area so tapping empty space dismisses cleanly
+                        layoutParams.width = WindowManager.LayoutParams.MATCH_PARENT
+                        layoutParams.height = WindowManager.LayoutParams.MATCH_PARENT
+                        layoutParams.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
+                    }
+                }
+                overlayComposeView?.let { view ->
+                    if (view.isAttachedToWindow) {
+                        try {
+                            windowManager?.updateViewLayout(view, layoutParams)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }
+            }
         }
     }
 

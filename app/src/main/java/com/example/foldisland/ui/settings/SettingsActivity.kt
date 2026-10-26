@@ -63,6 +63,10 @@ import com.example.foldisland.managers.ClipboardStore
 import com.example.foldisland.managers.HUDManager
 import com.example.foldisland.managers.MediaManager
 
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
+
 class SettingsActivity : ComponentActivity() {
 
     private val requestCalendarPermissionLauncher =
@@ -114,8 +118,14 @@ fun SettingsScreen(
     onStopOverlayService: () -> Unit
 ) {
     val context = LocalContext.current
+    val isDarkTheme = isSystemInDarkTheme()
     var hasOverlayPermission by remember { mutableStateOf(false) }
     var hasCalendarPermission by remember { mutableStateOf(false) }
+
+    val bgColor = if (isDarkTheme) IslandColors.PureBlack else Color(0xFFF2F2F7)
+    val cardColor = if (isDarkTheme) IslandColors.GlassSurfaceVariant else Color(0xFFFFFFFF)
+    val primaryText = if (isDarkTheme) IslandColors.TextPrimary else Color(0xFF000000)
+    val secondaryText = if (isDarkTheme) IslandColors.TextSecondary else Color(0xFF6C6C70)
 
     LaunchedEffect(Unit) {
         hasOverlayPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -135,24 +145,76 @@ fun SettingsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(IslandColors.PureBlack)
+            .background(bgColor)
             .padding(20.dp)
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // App Title Banner
-        Column(modifier = Modifier.padding(top = 24.dp)) {
+        Column(modifier = Modifier.padding(top = 20.dp)) {
             Text(
                 text = "🏝️ Dynamic Island",
-                color = IslandColors.TextPrimary,
+                color = primaryText,
                 fontSize = 26.sp,
                 fontWeight = FontWeight.ExtraBold
             )
             Text(
                 text = "Samsung Galaxy Fold 7 Çentik ve Çoklu Görev Yöneticisi",
-                color = IslandColors.TextSecondary,
+                color = secondaryText,
                 fontSize = 13.sp
             )
+        }
+
+        // Dark Mode Integration Status Card
+        Card(
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = cardColor),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = if (isDarkTheme) Icons.Default.DarkMode else Icons.Default.LightMode,
+                        contentDescription = null,
+                        tint = if (isDarkTheme) IslandColors.NeonPurple else IslandColors.NeonOrange,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "Karanlık Mod Entegrasyonu",
+                            color = primaryText,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = if (isDarkTheme) "Sistem Karanlık Modu Aktif (AMOLED Siyah)" else "Sistem Açık Modu Aktif",
+                            color = secondaryText,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (isDarkTheme) IslandColors.NeonPurple.copy(alpha = 0.2f) else IslandColors.NeonOrange.copy(alpha = 0.2f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = if (isDarkTheme) "AMOLED" else "AÇIK",
+                        color = if (isDarkTheme) IslandColors.NeonPurple else IslandColors.NeonOrange,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
 
         // Service Master Controls
