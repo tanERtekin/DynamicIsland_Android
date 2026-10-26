@@ -1,8 +1,12 @@
 package com.example.foldisland.ui.island
 
 import android.view.HapticFeedbackConstants
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -20,7 +24,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,7 +33,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -52,9 +54,7 @@ fun CollapsedIslandView(
     val pinnedEvent by CalendarEventsManager.pinnedEvent.collectAsState()
     val isStopwatchRunning by TimerCenter.isStopwatchRunning.collectAsState()
     val stopwatchSeconds by TimerCenter.stopwatchSeconds.collectAsState()
-
     val currentTrack by MediaManager.currentTrack.collectAsState()
-    val equalizerBars by MediaManager.equalizerBars.collectAsState()
 
     val interactionSource = remember { MutableInteractionSource() }
 
@@ -69,8 +69,8 @@ fun CollapsedIslandView(
                 view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                 onExpandRequested()
             }
-            .padding(horizontal = 14.dp, vertical = 7.dp)
-            .height(38.dp)
+            .padding(horizontal = 14.dp, vertical = 6.dp)
+            .height(36.dp)
             .wrapContentWidth(),
         contentAlignment = Alignment.Center
     ) {
@@ -82,17 +82,17 @@ fun CollapsedIslandView(
             // --- LEFT WING ---
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(end = 8.dp)
+                modifier = Modifier.padding(end = 6.dp)
             ) {
                 when {
                     pinnedNote != null -> {
                         Text(
                             text = "📌",
-                            fontSize = 13.sp,
+                            fontSize = 12.sp,
                             modifier = Modifier.padding(end = 4.dp)
                         )
                         Text(
-                            text = pinnedNote!!.text.take(12),
+                            text = pinnedNote!!.text.take(10),
                             color = IslandColors.TextPrimary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
@@ -103,7 +103,7 @@ fun CollapsedIslandView(
                     pinnedEvent != null -> {
                         Text(
                             text = pinnedEvent!!.emoji,
-                            fontSize = 13.sp,
+                            fontSize = 12.sp,
                             modifier = Modifier.padding(end = 4.dp)
                         )
                         Text(
@@ -116,7 +116,7 @@ fun CollapsedIslandView(
                     isStopwatchRunning -> {
                         Text(
                             text = "⏱️",
-                            fontSize = 13.sp,
+                            fontSize = 12.sp,
                             modifier = Modifier.padding(end = 4.dp)
                         )
                         Text(
@@ -138,18 +138,16 @@ fun CollapsedIslandView(
             }
 
             // --- CAMERA CUTOUT CLEARANCE GAP ---
-            Spacer(modifier = Modifier.width(22.dp))
+            Spacer(modifier = Modifier.width(20.dp))
 
             // --- RIGHT WING ---
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(start = 8.dp)
+                modifier = Modifier.padding(start = 6.dp)
             ) {
                 if (currentTrack.isPlaying) {
-                    // 4-Bar Equalizer animation
-                    EqualizerBarsView(bars = equalizerBars)
+                    EqualizerBarsView(isPlaying = true)
                 } else {
-                    // Default status: Battery / Bolt
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = "85%",
@@ -161,7 +159,7 @@ fun CollapsedIslandView(
                             imageVector = Icons.Default.Bolt,
                             contentDescription = "Battery",
                             tint = IslandColors.NeonGreen,
-                            modifier = Modifier.size(14.dp)
+                            modifier = Modifier.size(13.dp)
                         )
                     }
                 }
@@ -171,18 +169,56 @@ fun CollapsedIslandView(
 }
 
 @Composable
-fun EqualizerBarsView(bars: List<Float>) {
+fun EqualizerBarsView(isPlaying: Boolean) {
+    if (!isPlaying) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(2.5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.height(13.dp)
+        ) {
+            repeat(4) {
+                Box(
+                    modifier = Modifier
+                        .width(3.dp)
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(1.5.dp))
+                        .background(IslandColors.NeonGreen.copy(alpha = 0.4f))
+                )
+            }
+        }
+        return
+    }
+
+    val transition = rememberInfiniteTransition(label = "eq")
+    val h1 by transition.animateFloat(
+        initialValue = 0.25f, targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(tween(380, easing = LinearEasing), RepeatMode.Reverse), label = "h1"
+    )
+    val h2 by transition.animateFloat(
+        initialValue = 0.85f, targetValue = 0.2f,
+        animationSpec = infiniteRepeatable(tween(520, easing = LinearEasing), RepeatMode.Reverse), label = "h2"
+    )
+    val h3 by transition.animateFloat(
+        initialValue = 0.3f, targetValue = 0.95f,
+        animationSpec = infiniteRepeatable(tween(440, easing = LinearEasing), RepeatMode.Reverse), label = "h3"
+    )
+    val h4 by transition.animateFloat(
+        initialValue = 0.9f, targetValue = 0.35f,
+        animationSpec = infiniteRepeatable(tween(580, easing = LinearEasing), RepeatMode.Reverse), label = "h4"
+    )
+
+    val bars = listOf(h1, h2, h3, h4)
+
     Row(
         horizontalArrangement = Arrangement.spacedBy(2.5.dp),
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.height(14.dp)
+        modifier = Modifier.height(13.dp)
     ) {
-        bars.forEach { barLevel ->
-            val animatedHeight by animateFloatAsState(targetValue = barLevel, label = "eq")
+        bars.forEach { fraction ->
             Box(
                 modifier = Modifier
                     .width(3.dp)
-                    .fillMaxHeight(fraction = animatedHeight.coerceIn(0.15f, 1f))
+                    .fillMaxHeight(fraction = fraction)
                     .clip(RoundedCornerShape(1.5.dp))
                     .background(IslandColors.NeonGreen)
             )

@@ -41,7 +41,6 @@ import com.example.foldisland.ui.island.EqualizerBarsView
 @Composable
 fun HomeTabView(modifier: Modifier = Modifier) {
     val track by MediaManager.currentTrack.collectAsState()
-    val equalizerBars by MediaManager.equalizerBars.collectAsState()
     val pinnedNote by NotesStore.pinnedNote.collectAsState()
     val pinnedEvent by CalendarEventsManager.pinnedEvent.collectAsState()
 
@@ -100,7 +99,7 @@ fun HomeTabView(modifier: Modifier = Modifier) {
                         )
                     }
 
-                    EqualizerBarsView(bars = equalizerBars)
+                    EqualizerBarsView(isPlaying = track.isPlaying)
                 }
 
                 // Media Controls

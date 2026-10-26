@@ -60,7 +60,7 @@ fun ExpandedIslandView(
 
     Box(
         modifier = modifier
-            .fillMaxWidth(0.96f)
+            .width(360.dp)
             .clip(RoundedCornerShape(32.dp))
             .background(IslandColors.GlassSurface)
             .border(1.dp, IslandColors.GlassBorder, RoundedCornerShape(32.dp))

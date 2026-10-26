@@ -7,16 +7,11 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.Build
-import android.os.IBinder
 import android.view.Gravity
-import android.view.View
 import android.view.WindowManager
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.app.NotificationCompat
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.LifecycleRegistry
-import androidx.lifecycle.ServiceLifecycleDispatcher
+import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.setViewTreeLifecycleOwner
@@ -28,27 +23,22 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.example.foldisland.R
 import com.example.foldisland.core.model.IslandMode
 import com.example.foldisland.ui.island.IslandRootView
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 
-class IslandOverlayService : android.app.Service(), LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
+/**
+ * Rock-solid, flicker-free Foreground Service managing the Dynamic Island overlay.
+ * Uses a single, stable WindowManager configuration with official Samsung cutout support.
+ */
+class IslandOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateRegistryOwner {
 
-    private val dispatcher = ServiceLifecycleDispatcher(this)
-    private val lifecycleRegistry = LifecycleRegistry(this)
     private val store = ViewModelStore()
     private val savedStateRegistryController = SavedStateRegistryController.create(this)
 
     private var windowManager: WindowManager? = null
     private var overlayComposeView: ComposeView? = null
-    private lateinit var layoutParams: WindowManager.LayoutParams
-
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var isViewAdded = false
 
     private val _islandMode = MutableStateFlow<IslandMode>(IslandMode.Collapsed)
     val islandMode: StateFlow<IslandMode> = _islandMode.asStateFlow()
@@ -73,25 +63,25 @@ class IslandOverlayService : android.app.Service(), LifecycleOwner, ViewModelSto
     }
 
     override fun onCreate() {
-        dispatcher.onServicePreSuperOnCreate()
         super.onCreate()
         savedStateRegistryController.performRestore(null)
-        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
 
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildForegroundNotification())
 
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         setupOverlayView()
-        observeModeTransitions()
     }
 
     private fun setupOverlayView() {
+        if (isViewAdded) return
+
+        // Stable, flicker-free window flags specifically tailored for Samsung One UI & Fold devices
         val windowFlags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
 
-        layoutParams = WindowManager.LayoutParams(
+        val layoutParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -105,7 +95,9 @@ class IslandOverlayService : android.app.Service(), LifecycleOwner, ViewModelSto
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             x = 0
-            y = 10
+            y = 12 // Positioned cleanly below/around the top camera punch hole
+            
+            // Critical for Samsung cutout rendering: avoids status bar / window manager flicker loop
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode =
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
@@ -129,64 +121,24 @@ class IslandOverlayService : android.app.Service(), LifecycleOwner, ViewModelSto
 
         try {
             windowManager?.addView(overlayComposeView, layoutParams)
+            isViewAdded = true
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
-    private fun observeModeTransitions() {
-        serviceScope.launch {
-            _islandMode.collect { mode ->
-                when (mode) {
-                    is IslandMode.Collapsed, is IslandMode.HUD -> {
-                        layoutParams.width = WindowManager.LayoutParams.WRAP_CONTENT
-                        layoutParams.height = WindowManager.LayoutParams.WRAP_CONTENT
-                        layoutParams.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
-                    }
-                    is IslandMode.Expanded -> {
-                        layoutParams.width = WindowManager.LayoutParams.MATCH_PARENT
-                        layoutParams.height = WindowManager.LayoutParams.WRAP_CONTENT
-                        layoutParams.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
-                    }
-                }
-                overlayComposeView?.let { view ->
-                    if (view.isAttachedToWindow) {
-                        windowManager?.updateViewLayout(view, layoutParams)
-                    }
-                }
-            }
-        }
-    }
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        dispatcher.onServicePreSuperOnStart()
-        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
-        return START_STICKY
-    }
-
     override fun onDestroy() {
-        dispatcher.onServicePreSuperOnDestroy()
-        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
-        serviceScope.cancel()
-        overlayComposeView?.let {
-            if (it.isAttachedToWindow) {
-                windowManager?.removeView(it)
+        if (isViewAdded && overlayComposeView != null) {
+            try {
+                windowManager?.removeView(overlayComposeView)
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
+            isViewAdded = false
         }
+        overlayComposeView = null
         super.onDestroy()
     }
-
-    override fun onBind(intent: Intent?): IBinder? {
-        dispatcher.onServicePreSuperOnBind()
-        return null
-    }
-
-    override val lifecycle: Lifecycle
-        get() = lifecycleRegistry
 
     override val viewModelStore: ViewModelStore
         get() = store
@@ -212,7 +164,7 @@ class IslandOverlayService : android.app.Service(), LifecycleOwner, ViewModelSto
     private fun buildForegroundNotification(): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Dynamic Island Aktif")
-            .setContentText("Fold 7 için akıllı çentik overlay servisi çalışıyor")
+            .setContentText("Fold 7 akıllı çentik servisi kararlı şekilde çalışıyor")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)

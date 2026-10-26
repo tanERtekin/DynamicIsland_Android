@@ -5,47 +5,17 @@ import android.content.Context
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
-import android.os.Build
 import android.service.notification.NotificationListenerService
 import com.example.foldisland.core.model.MediaTrack
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import kotlin.random.Random
 
 object MediaManager {
     private val _currentTrack = MutableStateFlow(MediaTrack())
     val currentTrack: StateFlow<MediaTrack> = _currentTrack.asStateFlow()
 
-    private val _equalizerBars = MutableStateFlow(listOf(0.2f, 0.5f, 0.8f, 0.3f))
-    val equalizerBars: StateFlow<List<Float>> = _equalizerBars.asStateFlow()
-
     private var activeController: MediaController? = null
-    private val managerScope = CoroutineScope(Dispatchers.Default)
-
-    init {
-        // Equalizer animation ticker when media is playing
-        managerScope.launch {
-            while (isActive) {
-                if (_currentTrack.value.isPlaying) {
-                    _equalizerBars.value = listOf(
-                        Random.nextFloat().coerceIn(0.2f, 1.0f),
-                        Random.nextFloat().coerceIn(0.3f, 1.0f),
-                        Random.nextFloat().coerceIn(0.1f, 0.9f),
-                        Random.nextFloat().coerceIn(0.4f, 1.0f)
-                    )
-                    delay(120)
-                } else {
-                    delay(600)
-                }
-            }
-        }
-    }
 
     fun updateMediaInfo(title: String, artist: String, isPlaying: Boolean, durationMs: Long = 0, appPackage: String? = null) {
         _currentTrack.value = _currentTrack.value.copy(
@@ -67,7 +37,7 @@ object MediaManager {
                 _currentTrack.value = _currentTrack.value.copy(isPlaying = true)
             }
         } ?: run {
-            // Fallback for simulation / mock testing
+            // Simulation toggle
             _currentTrack.value = _currentTrack.value.copy(isPlaying = !_currentTrack.value.isPlaying)
         }
     }
