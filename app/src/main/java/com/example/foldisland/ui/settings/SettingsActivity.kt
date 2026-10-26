@@ -61,6 +61,7 @@ import com.example.foldisland.core.theme.IslandColors
 import com.example.foldisland.managers.CalendarEventsManager
 import com.example.foldisland.managers.ClipboardStore
 import com.example.foldisland.managers.HUDManager
+import com.example.foldisland.managers.BatteryMonitor
 import com.example.foldisland.managers.MediaManager
 
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -79,6 +80,7 @@ class SettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         ClipboardStore.initialize(this)
+        BatteryMonitor.start(this)
 
         setContent {
             SettingsScreen(

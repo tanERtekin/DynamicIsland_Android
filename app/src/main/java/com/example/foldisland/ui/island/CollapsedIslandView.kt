@@ -42,6 +42,7 @@ import com.example.foldisland.core.theme.IslandColors
 import com.example.foldisland.managers.CalendarEventsManager
 import com.example.foldisland.managers.MediaManager
 import com.example.foldisland.managers.NotesStore
+import com.example.foldisland.managers.BatteryMonitor
 import com.example.foldisland.managers.TimerCenter
 
 @Composable
@@ -55,6 +56,8 @@ fun CollapsedIslandView(
     val isStopwatchRunning by TimerCenter.isStopwatchRunning.collectAsState()
     val stopwatchSeconds by TimerCenter.stopwatchSeconds.collectAsState()
     val currentTrack by MediaManager.currentTrack.collectAsState()
+    val batteryPercent by BatteryMonitor.batteryPercent.collectAsState()
+    val isCharging by BatteryMonitor.isCharging.collectAsState()
 
     val interactionSource = remember { MutableInteractionSource() }
 
@@ -148,20 +151,18 @@ fun CollapsedIslandView(
                 if (currentTrack.isPlaying) {
                     EqualizerBarsView(isPlaying = true)
                 } else {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "85%",
-                            color = IslandColors.TextSecondary,
+                            text = "$batteryPercent%",
+                            color = if (isCharging) IslandColors.NeonGreen else IslandColors.TextSecondary,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium
                         )
                         Icon(
                             imageVector = Icons.Default.Bolt,
                             contentDescription = "Battery",
-                            tint = IslandColors.NeonGreen,
+                            tint = if (isCharging) IslandColors.NeonGreen else IslandColors.TextTertiary,
                             modifier = Modifier.size(13.dp)
                         )
-                    }
                 }
             }
         }

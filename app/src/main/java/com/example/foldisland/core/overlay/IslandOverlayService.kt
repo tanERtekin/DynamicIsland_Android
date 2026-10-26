@@ -23,6 +23,7 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.example.foldisland.R
 import com.example.foldisland.core.model.IslandMode
+import com.example.foldisland.managers.BatteryMonitor
 import com.example.foldisland.ui.island.IslandRootView
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -67,6 +68,8 @@ class IslandOverlayService : LifecycleService(), ViewModelStoreOwner, SavedState
 
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildForegroundNotification())
+
+        BatteryMonitor.start(this)
 
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         setupOverlayView()
