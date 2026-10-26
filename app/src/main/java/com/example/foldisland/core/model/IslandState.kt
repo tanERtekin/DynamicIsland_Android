@@ -46,7 +46,8 @@ data class MediaTrack(
     val isPlaying: Boolean = false,
     val progressMs: Long = 0,
     val durationMs: Long = 0,
-    val appPackage: String? = null
+    val appPackage: String? = null,
+    val albumArt: android.graphics.Bitmap? = null
 )
 
 data class CalendarEventItem(

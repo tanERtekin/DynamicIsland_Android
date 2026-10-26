@@ -38,6 +38,11 @@ import com.example.foldisland.managers.MediaManager
 import com.example.foldisland.managers.NotesStore
 import com.example.foldisland.ui.island.EqualizerBarsView
 
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.runtime.remember
+
 @Composable
 fun HomeTabView(modifier: Modifier = Modifier) {
     val track by MediaManager.currentTrack.collectAsState()
@@ -63,20 +68,30 @@ fun HomeTabView(modifier: Modifier = Modifier) {
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    // Album art placeholder / icon
-                    Box(
-                        modifier = Modifier
-                            .size(46.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(IslandColors.NeonPurple.copy(alpha = 0.25f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.MusicNote,
-                            contentDescription = "Album Art",
-                            tint = IslandColors.NeonPurple,
-                            modifier = Modifier.size(24.dp)
+                    if (track.albumArt != null) {
+                        Image(
+                            bitmap = remember(track.albumArt) { track.albumArt!!.asImageBitmap() },
+                            contentDescription = "Albüm Kapağı",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(46.dp)
+                                .clip(RoundedCornerShape(10.dp))
                         )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(46.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(IslandColors.NeonPurple.copy(alpha = 0.25f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MusicNote,
+                                contentDescription = "Album Art",
+                                tint = IslandColors.NeonPurple,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.width(12.dp))

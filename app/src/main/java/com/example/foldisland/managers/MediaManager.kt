@@ -2,10 +2,13 @@ package com.example.foldisland.managers
 
 import android.content.ComponentName
 import android.content.Context
+import android.graphics.Bitmap
+import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.service.notification.NotificationListenerService
+import androidx.core.app.NotificationManagerCompat
 import com.example.foldisland.core.model.MediaTrack
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,29 +20,39 @@ object MediaManager {
 
     private var activeController: MediaController? = null
 
-    fun updateMediaInfo(title: String, artist: String, isPlaying: Boolean, durationMs: Long = 0, appPackage: String? = null) {
-        _currentTrack.value = _currentTrack.value.copy(
+    fun hasNotificationAccess(context: Context): Boolean =
+        NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+
+    fun updateMediaInfo(
+        title: String,
+        artist: String,
+        isPlaying: Boolean,
+        durationMs: Long = 0,
+        appPackage: String? = null,
+        albumArt: Bitmap? = null
+    ) {
+        _currentTrack.value = MediaTrack(
             title = title.ifBlank { "Bilinmeyen Parça" },
             artist = artist.ifBlank { "Bilinmeyen Sanatçı" },
             isPlaying = isPlaying,
             durationMs = durationMs,
-            appPackage = appPackage
+            appPackage = appPackage,
+            albumArt = albumArt
         )
     }
 
+    fun clear() {
+        _currentTrack.value = MediaTrack()
+    }
+
     fun togglePlayPause() {
-        activeController?.transportControls?.let { controls ->
-            if (_currentTrack.value.isPlaying) {
-                controls.pause()
-                _currentTrack.value = _currentTrack.value.copy(isPlaying = false)
-            } else {
-                controls.play()
-                _currentTrack.value = _currentTrack.value.copy(isPlaying = true)
-            }
-        } ?: run {
-            // Simulation toggle
+        val controls = activeController?.transportControls
+        if (controls == null) {
+            // Simulation mode (no real session attached)
             _currentTrack.value = _currentTrack.value.copy(isPlaying = !_currentTrack.value.isPlaying)
+            return
         }
+        if (_currentTrack.value.isPlaying) controls.pause() else controls.play()
     }
 
     fun skipNext() {
@@ -50,32 +63,81 @@ object MediaManager {
         activeController?.transportControls?.skipToPrevious()
     }
 
-    fun setActiveController(controller: MediaController?) {
+    internal fun setActiveController(controller: MediaController?) {
         activeController = controller
     }
 }
 
+/**
+ * Tracks the active media session LIVE (Spotify, YouTube Music, etc.).
+ * Previously the session was read only once at connect, so track/play state never updated.
+ */
 class MediaNotificationListenerService : NotificationListenerService() {
+
+    private var sessionManager: MediaSessionManager? = null
+    private var current: MediaController? = null
+
+    private val controllerCallback = object : MediaController.Callback() {
+        override fun onPlaybackStateChanged(state: PlaybackState?) = publish()
+        override fun onMetadataChanged(metadata: MediaMetadata?) = publish()
+        override fun onSessionDestroyed() = attach(null)
+    }
+
+    private val sessionsListener =
+        MediaSessionManager.OnActiveSessionsChangedListener { controllers -> pick(controllers) }
+
     override fun onListenerConnected() {
         super.onListenerConnected()
-        val sessionManager = getSystemService(Context.MEDIA_SESSION_SERVICE) as? MediaSessionManager ?: return
-        val componentName = ComponentName(this, MediaNotificationListenerService::class.java)
-
+        val manager = getSystemService(Context.MEDIA_SESSION_SERVICE) as? MediaSessionManager ?: return
+        sessionManager = manager
+        val component = ComponentName(this, MediaNotificationListenerService::class.java)
         try {
-            val controllers = sessionManager.getActiveSessions(componentName)
-            if (controllers.isNotEmpty()) {
-                val primary = controllers[0]
-                MediaManager.setActiveController(primary)
-                val metadata = primary.metadata
-                val state = primary.playbackState
-                val isPlaying = state?.state == PlaybackState.STATE_PLAYING
-
-                val title = metadata?.getString(android.media.MediaMetadata.METADATA_KEY_TITLE) ?: "Çalan Parça"
-                val artist = metadata?.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST) ?: ""
-                MediaManager.updateMediaInfo(title, artist, isPlaying, appPackage = primary.packageName)
-            }
+            manager.addOnActiveSessionsChangedListener(sessionsListener, component)
+            pick(manager.getActiveSessions(component))
         } catch (e: SecurityException) {
             e.printStackTrace()
         }
+    }
+
+    override fun onListenerDisconnected() {
+        sessionManager?.removeOnActiveSessionsChangedListener(sessionsListener)
+        attach(null)
+        super.onListenerDisconnected()
+    }
+
+    private fun pick(controllers: List<MediaController>?) {
+        val playing = controllers?.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING }
+        attach(playing ?: controllers?.firstOrNull())
+    }
+
+    private fun attach(controller: MediaController?) {
+        if (controller != null && controller.sessionToken == current?.sessionToken) {
+            publish()
+            return
+        }
+        current?.unregisterCallback(controllerCallback)
+        current = controller
+        controller?.registerCallback(controllerCallback)
+        MediaManager.setActiveController(controller)
+        publish()
+    }
+
+    private fun publish() {
+        val controller = current
+        if (controller == null) {
+            MediaManager.clear()
+            return
+        }
+        val metadata = controller.metadata
+        val isPlaying = controller.playbackState?.state == PlaybackState.STATE_PLAYING
+        MediaManager.updateMediaInfo(
+            title = metadata?.getString(MediaMetadata.METADATA_KEY_TITLE).orEmpty(),
+            artist = metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST).orEmpty(),
+            isPlaying = isPlaying,
+            durationMs = metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L,
+            appPackage = controller.packageName,
+            albumArt = metadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+                ?: metadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
+        )
     }
 }

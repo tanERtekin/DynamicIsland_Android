@@ -123,13 +123,14 @@ fun SettingsScreen(
     val isDarkTheme = isSystemInDarkTheme()
     var hasOverlayPermission by remember { mutableStateOf(false) }
     var hasCalendarPermission by remember { mutableStateOf(false) }
+    var hasNotificationPermission by remember { mutableStateOf(false) }
 
     val bgColor = if (isDarkTheme) IslandColors.PureBlack else Color(0xFFF2F2F7)
     val cardColor = if (isDarkTheme) IslandColors.GlassSurfaceVariant else Color(0xFFFFFFFF)
     val primaryText = if (isDarkTheme) IslandColors.TextPrimary else Color(0xFF000000)
     val secondaryText = if (isDarkTheme) IslandColors.TextSecondary else Color(0xFF6C6C70)
 
-    LaunchedEffect(Unit) {
+    val checkPermissions = {
         hasOverlayPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             Settings.canDrawOverlays(context)
         } else true
@@ -139,9 +140,15 @@ fun SettingsScreen(
             Manifest.permission.READ_CALENDAR
         ) == PackageManager.PERMISSION_GRANTED
 
+        hasNotificationPermission = MediaManager.hasNotificationAccess(context)
+
         if (hasCalendarPermission) {
             CalendarEventsManager.loadDeviceCalendar(context)
         }
+    }
+
+    LaunchedEffect(Unit) {
+        checkPermissions()
     }
 
     Column(
@@ -288,7 +295,7 @@ fun SettingsScreen(
                 PermissionItem(
                     title = "Medya ve Bildirim Erişimi",
                     desc = "Spotify ve müzik oynatıcı kontrolleri için",
-                    isGranted = false,
+                    isGranted = hasNotificationPermission,
                     onGrantClick = onOpenNotificationSettings
                 )
 

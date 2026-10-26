@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -19,7 +20,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -33,18 +33,28 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.foldisland.core.overlay.IslandOverlayService
 import com.example.foldisland.core.theme.IslandColors
+import com.example.foldisland.managers.BatteryMonitor
 import com.example.foldisland.managers.CalendarEventsManager
 import com.example.foldisland.managers.MediaManager
 import com.example.foldisland.managers.NotesStore
-import com.example.foldisland.managers.BatteryMonitor
 import com.example.foldisland.managers.TimerCenter
 
+private val WING_WIDTH = 84.dp
+private val CAMERA_GAP = 28.dp
+
+/**
+ * Collapsed pill with a CONSTANT size: both wings have a fixed width so the camera gap is always
+ * exactly centered on the punch-hole and content changes (battery %, timer ticks) never resize it.
+ */
 @Composable
 fun CollapsedIslandView(
     onExpandRequested: () -> Unit,
@@ -55,114 +65,94 @@ fun CollapsedIslandView(
     val pinnedEvent by CalendarEventsManager.pinnedEvent.collectAsState()
     val isStopwatchRunning by TimerCenter.isStopwatchRunning.collectAsState()
     val stopwatchSeconds by TimerCenter.stopwatchSeconds.collectAsState()
+    val isCountdownRunning by TimerCenter.isCountdownRunning.collectAsState()
+    val countdownSeconds by TimerCenter.countdownRemainingSeconds.collectAsState()
     val currentTrack by MediaManager.currentTrack.collectAsState()
     val batteryPercent by BatteryMonitor.batteryPercent.collectAsState()
     val isCharging by BatteryMonitor.isCharging.collectAsState()
 
-    val interactionSource = remember { MutableInteractionSource() }
-
-    Box(
+    Row(
         modifier = modifier
+            .width(IslandOverlayService.PILL_WIDTH_DP.dp)
+            .height(IslandOverlayService.PILL_HEIGHT_DP.dp)
             .clip(CircleShape)
             .background(IslandColors.PureBlack)
             .clickable(
-                interactionSource = interactionSource,
+                interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) {
                 view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                 onExpandRequested()
             }
-            .padding(horizontal = 14.dp, vertical = 6.dp)
-            .height(36.dp)
-            .wrapContentWidth(),
-        contentAlignment = Alignment.Center
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
+        // --- LEFT WING (priority: note > countdown event > timer > brand) ---
         Row(
+            modifier = Modifier.width(WING_WIDTH),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier.wrapContentWidth()
+            horizontalArrangement = Arrangement.Start
         ) {
-            // --- LEFT WING ---
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(end = 6.dp)
-            ) {
-                when {
-                    pinnedNote != null -> {
-                        Text(
-                            text = "📌",
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(end = 4.dp)
-                        )
-                        Text(
-                            text = pinnedNote!!.text.take(10),
-                            color = IslandColors.TextPrimary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    pinnedEvent != null -> {
-                        Text(
-                            text = pinnedEvent!!.emoji,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(end = 4.dp)
-                        )
-                        Text(
-                            text = pinnedEvent!!.daysRemainingText,
-                            color = IslandColors.NeonOrange,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                    isStopwatchRunning -> {
-                        Text(
-                            text = "⏱️",
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(end = 4.dp)
-                        )
-                        Text(
-                            text = TimerCenter.formatSecondsToTime(stopwatchSeconds),
-                            color = IslandColors.NeonGreen,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                    else -> {
-                        Text(
-                            text = "🏝️ Fold",
-                            color = IslandColors.TextPrimary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
+            val (icon, label, color) = when {
+                pinnedNote != null -> Triple("📌", pinnedNote!!.text, IslandColors.TextPrimary)
+                pinnedEvent != null -> Triple(
+                    pinnedEvent!!.emoji, pinnedEvent!!.daysRemainingText, IslandColors.NeonOrange
+                )
+                isCountdownRunning -> Triple(
+                    "⏳", TimerCenter.formatSecondsToTime(countdownSeconds), IslandColors.NeonYellow
+                )
+                isStopwatchRunning -> Triple(
+                    "⏱️", TimerCenter.formatSecondsToTime(stopwatchSeconds), IslandColors.NeonGreen
+                )
+                else -> Triple("🏝️", "Fold", IslandColors.TextPrimary)
             }
+            Text(text = icon, fontSize = 12.sp, modifier = Modifier.padding(end = 4.dp))
+            Text(
+                text = label,
+                color = color,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
 
-            // --- CAMERA CUTOUT CLEARANCE GAP ---
-            Spacer(modifier = Modifier.width(20.dp))
+        // --- CAMERA CUTOUT CLEARANCE GAP (always centered) ---
+        Spacer(modifier = Modifier.width(CAMERA_GAP))
 
-            // --- RIGHT WING ---
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(start = 6.dp)
-            ) {
-                if (currentTrack.isPlaying) {
-                    EqualizerBarsView(isPlaying = true)
-                } else {
-                        Text(
-                            text = "$batteryPercent%",
-                            color = if (isCharging) IslandColors.NeonGreen else IslandColors.TextSecondary,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Icon(
-                            imageVector = Icons.Default.Bolt,
-                            contentDescription = "Battery",
-                            tint = if (isCharging) IslandColors.NeonGreen else IslandColors.TextTertiary,
-                            modifier = Modifier.size(13.dp)
-                        )
+        // --- RIGHT WING (media > battery) ---
+        Row(
+            modifier = Modifier.width(WING_WIDTH),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.End
+        ) {
+            if (currentTrack.isPlaying) {
+                currentTrack.albumArt?.let { art ->
+                    Image(
+                        bitmap = remember(art) { art.asImageBitmap() },
+                        contentDescription = "Albüm kapağı",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(RoundedCornerShape(5.dp))
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                EqualizerBarsView(isPlaying = true)
+            } else {
+                Text(
+                    text = "$batteryPercent%",
+                    color = if (isCharging) IslandColors.NeonGreen else IslandColors.TextSecondary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                if (isCharging) {
+                    Icon(
+                        imageVector = Icons.Default.Bolt,
+                        contentDescription = "Şarj oluyor",
+                        tint = IslandColors.NeonGreen,
+                        modifier = Modifier.size(13.dp)
+                    )
                 }
             }
         }
@@ -208,14 +198,12 @@ fun EqualizerBarsView(isPlaying: Boolean) {
         animationSpec = infiniteRepeatable(tween(580, easing = LinearEasing), RepeatMode.Reverse), label = "h4"
     )
 
-    val bars = listOf(h1, h2, h3, h4)
-
     Row(
         horizontalArrangement = Arrangement.spacedBy(2.5.dp),
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.height(13.dp)
     ) {
-        bars.forEach { fraction ->
+        listOf(h1, h2, h3, h4).forEach { fraction ->
             Box(
                 modifier = Modifier
                     .width(3.dp)

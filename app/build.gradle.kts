@@ -21,7 +21,21 @@ android {
         }
     }
 
+    // Fixed debug key (debug only, safe to commit) so CI builds can update in place
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.p12")
+            storeType = "pkcs12"
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(

@@ -36,8 +36,8 @@ fun HUDView(
         modifier = modifier
             .clip(CircleShape)
             .background(IslandColors.PureBlack)
-            .height(42.dp)
-            .padding(horizontal = 16.dp),
+            .height(36.dp)
+            .padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center
     ) {
         when (hud) {
